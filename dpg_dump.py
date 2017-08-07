@@ -28,10 +28,13 @@ import os
 
 
 class PgDump(Client):
+
     def parser(self):
         parser = super(PgDump, self).parser()
         parser.add_argument('database', help="Database name")
         parser.add_argument('-f', '--file', help="Exported file name")
+        parser.add_argument('-o', '--clean-odoo-db',
+                            help="Clean Odoo Database With Optional Query File")
         return parser
 
     def docker_cmd(self):
@@ -43,12 +46,40 @@ class PgDump(Client):
     def container_cmd(self):
         # mount a volume if a file is passed as argument
         args = self.args
-        res = ['pg_dump -h db -p %s -U %s -d %s' % (
-            args.port, args.user, args.database)]
+        res = []
+        if args.clean_odoo_db:
+            res = \
+                ["psql -h db -p %s -U %s -d %s "
+                 "-c 'CREATE DATABASE duplicate_db "
+                 "WITH TEMPLATE %s OWNER %s;' &&" % (
+                    args.port,
+                    args.user,
+                    args.database,
+                    args.database,
+                    args.user)]
+            res.append("echo '1---Finish Create duplicate_db' &&")
+            res.append(
+                'psql -h db -p %s -U %s -d duplicate_db -f /tmp/%s &&' % (
+                    args.port, args.user, args.clean_odoo_db))
+            res.append("echo '2---Finish Clean duplicate_db' &&")
+            res.append('pg_dump -h db -p %s -U %s -d duplicate_db' % (
+                args.port, args.user))
+        else:
+            res.append('pg_dump -h db -p %s -U %s -d %s' % (
+                args.port, args.user, args.database))
         if args.file:
             res.append('> /tmp/%s' % args.file)
         else:
             res.append('> /tmp/%s.out' % args.database)
+
+        if args.clean_odoo_db:
+            res.append("&& echo '3---Finish Dump duplicate_db' &&")
+            res.append(
+                "psql -h db -p %s -U %s -d %s "
+                "-c 'Drop DATABASE duplicate_db'"% (
+                    args.port,
+                    args.user,
+                    args.database))
         return res
 
 

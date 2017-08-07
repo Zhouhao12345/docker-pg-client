@@ -64,7 +64,7 @@ class Client(object):
         docker_cmd = ' '.join(self.docker_cmd())
         container_cmd = ' '.join(self.container_cmd())
         return '''docker run -it --link %s:db %s \
-                  --rm %s sh -c \'exec %s\'
+                  --rm %s sh -c \"%s\"
                ''' % (args.container, docker_cmd, tag, container_cmd)
 
     def docker_cmd(self):
